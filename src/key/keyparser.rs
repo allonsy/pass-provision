@@ -32,7 +32,7 @@ pub struct KeyParserV2 {}
 
 impl KeyParser for KeyParserV2 {
     fn parse_key<'a>(&self, lines: Lines<'a>) -> Result<Option<(Key, Lines<'a>)>, String> {
-        let mut fingerprint = String::new();
+        let mut fingerprint;
         let mut identity = String::new();
         let mut lines = lines;
 
@@ -54,7 +54,7 @@ impl KeyParser for KeyParserV2 {
         }
 
         for token in ident_line.unwrap().split_whitespace() {
-            if token.starts_with("<") {
+            if token.starts_with('<') {
                 let token_len = token.len();
                 identity = token[1..token_len - 1].to_string();
             }

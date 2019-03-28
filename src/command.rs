@@ -2,7 +2,6 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::process::Command;
-use std::str::Lines;
 
 pub fn get_command_output(command: &str, args: &[&str]) -> Result<String> {
     let cmd = Command::new(command).args(args).output();

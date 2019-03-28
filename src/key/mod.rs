@@ -19,7 +19,7 @@ pub fn parse_keys() -> Result<Vec<Key>, String> {
 
     let secret_key_output = command::get_command_output("gpg", &["--list-secret-keys"]);
     if secret_key_output.is_err() {
-        return Err(format!("Unable to retrieve secret key listings"));
+        return Err("Unable to retrieve secret key listings".to_string());
     }
     let secret_key_str = secret_key_output.unwrap();
     let mut sec_lines = secret_key_str.lines();
