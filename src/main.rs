@@ -1,5 +1,5 @@
-mod key;
 mod command;
+mod key;
 
 fn main() {
     let keys = key::parse_keys();

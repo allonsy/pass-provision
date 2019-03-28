@@ -1,11 +1,14 @@
-use std::str::Lines;
 use super::Key;
+use std::str::Lines;
 
 pub trait KeyParser {
     fn parse_key<'a>(&self, lines: Lines<'a>) -> Result<Option<(Key, Lines<'a>)>, String>;
 }
 
-pub fn parse_keys<P>(parser: &P, lines: Lines) -> Result<Vec<Key>, String> where P: KeyParser {
+pub fn parse_keys<P>(parser: &P, lines: Lines) -> Result<Vec<Key>, String>
+where
+    P: KeyParser,
+{
     let mut keys = Vec::new();
     let mut lines = lines;
 
@@ -23,10 +26,9 @@ pub fn parse_keys<P>(parser: &P, lines: Lines) -> Result<Vec<Key>, String> where
         keys.push(new_key);
         lines = new_lines;
     }
-
 }
 
-pub struct KeyParserV2 { }
+pub struct KeyParserV2 {}
 
 impl KeyParser for KeyParserV2 {
     fn parse_key<'a>(&self, lines: Lines<'a>) -> Result<Option<(Key, Lines<'a>)>, String> {
@@ -58,7 +60,10 @@ impl KeyParser for KeyParserV2 {
             }
         }
         if identity.is_empty() {
-            return Err(format!("No identity in ident line: {}", ident_line.unwrap()));
+            return Err(format!(
+                "No identity in ident line: {}",
+                ident_line.unwrap()
+            ));
         }
 
         loop {

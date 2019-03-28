@@ -2,7 +2,7 @@ mod keyparser;
 use super::command;
 
 pub fn parse_keys() -> Result<Vec<Key>, String> {
-    let parser = keyparser::KeyParserV2{};
+    let parser = keyparser::KeyParserV2 {};
     let list_key_output = command::get_command_output("gpg", &["--list-keys"]);
     if list_key_output.is_err() {
         return Err("unable to get list key output".to_string());
@@ -42,7 +42,6 @@ pub fn parse_keys() -> Result<Vec<Key>, String> {
     }
 
     Ok(pub_keys)
-
 }
 
 pub struct Key {
@@ -56,7 +55,7 @@ impl Key {
         Key {
             identity,
             fingerprint,
-            has_secret_key
+            has_secret_key,
         }
     }
 
@@ -83,6 +82,11 @@ impl Key {
     }
 
     pub fn print_key(&self) {
-        println!("Key ident: {}, fpr: {}, secret key: {}", self.identity, self.fingerprint, self.has_secret_key());
+        println!(
+            "Key ident: {}, fpr: {}, secret key: {}",
+            self.identity,
+            self.fingerprint,
+            self.has_secret_key()
+        );
     }
 }
