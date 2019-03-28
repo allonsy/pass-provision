@@ -12,4 +12,6 @@ fn main() {
     for key_var in key_vec {
         key_var.print_key();
     }
+
+    println!("present_keys: {:?}", key::get_key_ids());
 }

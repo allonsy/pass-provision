@@ -1,8 +1,24 @@
-mod keyparser;
+mod folder;
+mod gpg_id;
+mod parser;
 use super::command;
+pub use folder::get_key_ids;
 
 pub fn parse_keys() -> Result<Vec<Key>, String> {
-    let parser = keyparser::KeyParserV2 {};
+    let gpg_version = parser::get_gpg_version();
+
+    let parser = if gpg_version.is_none() {
+        parser::ParserV2::new()
+    } else {
+        let gpg_version_str = gpg_version.unwrap();
+        match gpg_version_str.as_str() {
+            "2.1.4" => parser::ParserV2::new(),
+            _ => {
+                eprintln!("WARNING: UNSUPPORTED GPG VERSION: {}", gpg_version_str);
+                parser::ParserV2::new()
+            }
+        }
+    };
     let list_key_output = command::get_command_output("gpg", &["--list-keys"]);
     if list_key_output.is_err() {
         return Err("unable to get list key output".to_string());
@@ -11,7 +27,7 @@ pub fn parse_keys() -> Result<Vec<Key>, String> {
     let mut lines = list_key_str.lines();
     lines.next();
     lines.next();
-    let pub_keys_res = keyparser::parse_keys(&parser, lines);
+    let pub_keys_res = parser::parse_keys(&parser, lines);
     if pub_keys_res.is_err() {
         return Err(pub_keys_res.err().unwrap());
     }
@@ -26,7 +42,7 @@ pub fn parse_keys() -> Result<Vec<Key>, String> {
     sec_lines.next();
     sec_lines.next();
 
-    let sec_keys_res = keyparser::parse_keys(&parser, sec_lines);
+    let sec_keys_res = parser::parse_keys(&parser, sec_lines);
     if sec_keys_res.is_err() {
         return Err(sec_keys_res.err().unwrap());
     }
@@ -79,6 +95,26 @@ impl Key {
 
     pub fn set_has_secret_key(&mut self, has_secret_key: bool) {
         self.has_secret_key = has_secret_key;
+    }
+
+    pub fn write_key(&self) {
+        let keys_dir = folder::get_keys_dir();
+        let fname = format!("{}.asc", self.fingerprint);
+        let abs_path = keys_dir.join(fname);
+        let full_output_path = format!("{}", abs_path.display());
+        let success = command::oneshot_command(
+            "gpg",
+            &[
+                "--armor",
+                "--output",
+                &full_output_path,
+                "--export",
+                &self.fingerprint,
+            ],
+        );
+        if success.is_err() {
+            eprintln!("Error writing key file for key: {}", self.identity);
+        }
     }
 
     pub fn print_key(&self) {

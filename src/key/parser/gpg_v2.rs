@@ -1,36 +1,16 @@
 use super::Key;
+use super::Parser;
 use std::str::Lines;
 
-pub trait KeyParser {
-    fn parse_key<'a>(&self, lines: Lines<'a>) -> Result<Option<(Key, Lines<'a>)>, String>;
-}
+pub struct ParserV2 {}
 
-pub fn parse_keys<P>(parser: &P, lines: Lines) -> Result<Vec<Key>, String>
-where
-    P: KeyParser,
-{
-    let mut keys = Vec::new();
-    let mut lines = lines;
-
-    loop {
-        let key_res = parser.parse_key(lines);
-        if key_res.is_err() {
-            return Err(key_res.err().unwrap());
-        }
-        let key_opt = key_res.unwrap();
-        if key_opt.is_none() {
-            return Ok(keys);
-        }
-
-        let (new_key, new_lines) = key_opt.unwrap();
-        keys.push(new_key);
-        lines = new_lines;
+impl ParserV2 {
+    pub fn new() -> ParserV2 {
+        ParserV2 {}
     }
 }
 
-pub struct KeyParserV2 {}
-
-impl KeyParser for KeyParserV2 {
+impl Parser for ParserV2 {
     fn parse_key<'a>(&self, lines: Lines<'a>) -> Result<Option<(Key, Lines<'a>)>, String> {
         let mut fingerprint;
         let mut identity = String::new();
