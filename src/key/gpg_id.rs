@@ -5,7 +5,7 @@ use std::io::Read;
 use std::io::Write;
 use std::path::Path;
 
-const GPG_ID_FILE_NAME: &str = ".gpg_id";
+const GPG_ID_FILE_NAME: &str = ".gpg-id";
 
 pub fn get_all_gpgs() -> HashSet<String> {
     let pass_dir = folder::get_pass_dir();

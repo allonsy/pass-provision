@@ -2,6 +2,8 @@ use super::Key;
 use super::Parser;
 use std::str::Lines;
 
+const UNKNOWN_STATUS: &str = "unknown";
+
 pub struct ParserV2 {}
 
 impl ParserV2 {
@@ -33,7 +35,22 @@ impl Parser for ParserV2 {
             return Err("No ident line included".to_string());
         }
 
-        for token in ident_line.unwrap().split_whitespace() {
+        let ident_line = ident_line.unwrap();
+        let mut skip = false;
+
+        let bracket_split = ident_line.split('[').collect::<Vec<&str>>();
+        if bracket_split.len() >= 2 {
+            let follow = bracket_split[1];
+            let trust_status_vec = follow.split(']').collect::<Vec<&str>>();
+            if trust_status_vec.len() >= 1 {
+                let trust_status = trust_status_vec[0].trim();
+                if trust_status == UNKNOWN_STATUS {
+                    skip = true;
+                }
+            }
+        }
+
+        for token in ident_line.split_whitespace() {
             if token.starts_with('<') {
                 let token_len = token.len();
                 identity = token[1..token_len - 1].to_string();
@@ -42,7 +59,7 @@ impl Parser for ParserV2 {
         if identity.is_empty() {
             return Err(format!(
                 "No identity in ident line: {}",
-                ident_line.unwrap()
+                ident_line
             ));
         }
 
@@ -56,7 +73,26 @@ impl Parser for ParserV2 {
             }
         }
 
-        let key = Key::new(identity, fingerprint, false);
+        let key = Key::new(identity, fingerprint, false, skip);
+
         Ok(Some((key, lines)))
+    }
+
+    fn parse_sigs(&self, output: String) -> Vec<(String, String)> {
+        let mut sigs = Vec::new();
+        for line in output.lines() {
+            if line.starts_with("sig") {
+                let words: Vec<&str> = line.split_whitespace().collect();
+                let mut fingerprint;
+                if words.len() >= 2 {
+                    fingerprint = words[1].to_string();
+                    let identity = words[words.len() - 1];
+                    let actual_identity = &identity[1..identity.len() - 1];
+                    sigs.push((fingerprint, actual_identity.to_string()));
+                }
+            }
+        }
+
+        sigs
     }
 }
