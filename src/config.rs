@@ -91,5 +91,5 @@ pub fn get_config_file_location() -> PathBuf {
         }
     }
 
-    return config_dir.join(CONFIG_FILE_NAME);
+    config_dir.join(CONFIG_FILE_NAME)
 }

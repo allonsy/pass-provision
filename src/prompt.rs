@@ -13,7 +13,7 @@ pub fn prompt(prompt: &str) -> String {
         std::process::exit(1);
     }
 
-    return input;
+    input
 }
 
 pub fn menu(prompt_str: &str, options: &[&str], default: Option<usize>) -> usize {

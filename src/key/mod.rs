@@ -100,7 +100,7 @@ pub fn import_key(context: &mut Context, fingerprint: String) -> Option<Key> {
     let key_imports = import_result.imports();
     let mut should_check_sigs = false;
     for key_import in key_imports {
-        if key_import.fingerprint().unwrap() != &fingerprint {
+        if key_import.fingerprint().unwrap() != fingerprint {
             println!("FRAUD DETECTED ON IMPORT OF: {}", fingerprint);
         }
         if key_import.status() == gpgme::ImportFlags::NEW {
@@ -176,13 +176,13 @@ pub fn import_key(context: &mut Context, fingerprint: String) -> Option<Key> {
         let res = context.sign_key(&imported_gpg_key, vec![&imported_key.identity], None);
         if res.is_err() {
             eprintln!("Unable to sign key");
-            return None;
+            None
         } else {
-            return Some(imported_key);
+            Some(imported_key)
         }
     } else {
         eprintln!("Didn't sign key");
-        return None;
+        None
     }
 }
 

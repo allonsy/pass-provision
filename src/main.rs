@@ -58,7 +58,7 @@ fn add_fresh_sigs(context: &mut Context) {
     }
 }
 
-fn write_missing_keys(context: &mut Context, keys: &Vec<key::Key>) {
+fn write_missing_keys(context: &mut Context, keys: &[key::Key]) {
     let gpgs = key::gpg_id::get_all_gpgs();
 
     let written_keys = key::get_key_ids();
@@ -147,12 +147,10 @@ fn init() -> (config::Config, Context) {
             }
             let new_keys = new_keys.unwrap();
             for new_key in new_keys {
-                if new_key.has_secret_key() {
-                    if !seen_before.contains(new_key.get_fingerprint()) {
-                        let conf = config::Config::new(new_key.get_fingerprint().to_string());
-                        conf.write_config();
-                        return (conf, context);
-                    }
+                if new_key.has_secret_key() && !seen_before.contains(new_key.get_fingerprint()) {
+                    let conf = config::Config::new(new_key.get_fingerprint().to_string());
+                    conf.write_config();
+                    return (conf, context);
                 }
             }
             eprintln!("Unable to locate newly created key!");
