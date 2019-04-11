@@ -1,8 +1,8 @@
 use dirs;
-use std::path::PathBuf;
 use std::fs;
-use toml::Value;
+use std::path::PathBuf;
 use toml::map::Map;
+use toml::Value;
 
 const CONFIG_FILE_NAME: &str = "pass-provision.conf";
 const DEFAULT_KEY_KEY: &str = "default-key";
@@ -14,7 +14,7 @@ pub struct Config {
 impl Config {
     pub fn new(def_key_fingerprint: String) -> Config {
         Config {
-            default_key: def_key_fingerprint
+            default_key: def_key_fingerprint,
         }
     }
 
@@ -75,8 +75,6 @@ impl Config {
         }
     }
 }
-
-
 
 pub fn get_config_file_location() -> PathBuf {
     let config_dir_opt = dirs::config_dir();

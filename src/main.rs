@@ -1,7 +1,7 @@
 mod command;
+mod config;
 mod key;
 mod prompt;
-mod config;
 
 use gpgme::Context;
 use std::collections::HashSet;
@@ -10,7 +10,10 @@ fn main() {
     let (conf, mut context) = init();
     let default_key = context.get_key(conf.get_default_key());
     if default_key.is_err() {
-        eprintln!("Unable to locate default key: {} in keyring", conf.get_default_key());
+        eprintln!(
+            "Unable to locate default key: {} in keyring",
+            conf.get_default_key()
+        );
         std::process::exit(1);
     }
     let signer_res = context.add_signer(&default_key.unwrap());
@@ -29,29 +32,15 @@ fn main() {
 }
 
 fn sync(context: &mut Context, keys: &mut Vec<key::Key>) {
-    check_keys_to_import(context, keys);
+    check_keys_to_import(context);
     add_fresh_sigs(context);
     write_missing_keys(context, keys);
 }
 
-fn check_keys_to_import(context: &mut Context, keys: &mut Vec<key::Key>) {
+fn check_keys_to_import(context: &mut Context) {
     let keys_in_folder = key::get_key_ids();
     for key in keys_in_folder {
-        let mut found = false;
-        for present_key in keys.iter() {
-            if present_key.get_fingerprint() == key {
-                found = true;
-            }
-        }
-        if !found {
-            let new_key = key::import_key(context, key);
-            if new_key.is_some() {
-                let actual_new_key = new_key.unwrap();
-                actual_new_key.write_key(context);
-                keys.push(actual_new_key);
-                println!("Imported key");
-            }
-        }
+        key::import_key(context, key);
     }
 }
 
@@ -102,7 +91,6 @@ fn init() -> (config::Config, Context) {
     context.set_armor(true);
     context.clear_signers();
 
-
     let config_path = config::get_config_file_location();
     if config_path.exists() {
         let conf = config::Config::parse_config();
@@ -122,7 +110,11 @@ fn init() -> (config::Config, Context) {
     let mut key_index = Vec::new();
     for key_val in keys {
         if key_val.has_secret_key() {
-            key_options.push(format!("<{}> ({})", key_val.get_identity(), key_val.get_short_fingerprint()));
+            key_options.push(format!(
+                "<{}> ({})",
+                key_val.get_identity(),
+                key_val.get_short_fingerprint()
+            ));
             seen_before.insert(key_val.get_fingerprint().to_string());
             key_index.push(key_val.get_fingerprint().to_string());
         }
@@ -131,7 +123,14 @@ fn init() -> (config::Config, Context) {
 
     loop {
         println!("It looks like you haven't yet set up pass-provision");
-        let choice = prompt::menu("Please select which key you use to decrypt for pass", &(key_options.iter().map(String::as_str).collect::<Vec<&str>>()), Some(0));
+        let choice = prompt::menu(
+            "Please select which key you use to decrypt for pass",
+            &(key_options
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<&str>>()),
+            Some(0),
+        );
         println!("choice is: {}", choice);
         if choice == key_options.len() - 1 {
             let res = command::oneshot_command("gpg", &["--full-gen-key"]);

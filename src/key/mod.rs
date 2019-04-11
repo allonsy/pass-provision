@@ -18,7 +18,7 @@ pub fn get_keys(context: &mut Context) -> Result<Vec<Key>, String> {
             continue;
         }
         let key = key.unwrap();
-        
+
         let parsed_key = Key::parse_key(&key)?;
         pub_keys.push(parsed_key);
     }
@@ -26,7 +26,7 @@ pub fn get_keys(context: &mut Context) -> Result<Vec<Key>, String> {
     Ok(pub_keys)
 }
 
-pub fn get_secret_keys(context:&mut Context) -> Result<Vec<Key>, String> {
+pub fn get_secret_keys(context: &mut Context) -> Result<Vec<Key>, String> {
     let mut priv_keys = Vec::new();
     let key_iterator = context.secret_keys();
     if key_iterator.is_err() {
@@ -39,7 +39,7 @@ pub fn get_secret_keys(context:&mut Context) -> Result<Vec<Key>, String> {
             continue;
         }
         let key = key.unwrap();
-        
+
         let parsed_key = Key::parse_key(&key)?;
         priv_keys.push(parsed_key);
     }
@@ -79,11 +79,15 @@ pub fn import_key(context: &mut Context, fingerprint: String) -> Option<Key> {
         eprintln!("Unable to import key for fingerprint: {}", fingerprint);
         return None;
     }
+    let import_result = import_result.unwrap();
 
     let imported_gpg_key = context.get_key(&fingerprint);
 
     if imported_gpg_key.is_err() {
-        eprintln!("FRAUD DETECTED ON IMPORT, PLEASE DOUBLE CHECK KEY AT: {}", fingerprint);
+        eprintln!(
+            "FRAUD DETECTED ON IMPORT, PLEASE DOUBLE CHECK KEY AT: {}",
+            fingerprint
+        );
         return None;
     }
     let imported_gpg_key = imported_gpg_key.unwrap();
@@ -92,7 +96,20 @@ pub fn import_key(context: &mut Context, fingerprint: String) -> Option<Key> {
         return None;
     }
     let imported_key = imported_key.unwrap();
-    
+
+    let key_imports = import_result.imports();
+    let mut should_check_sigs = false;
+    for key_import in key_imports {
+        if key_import.fingerprint().unwrap() != &fingerprint {
+            println!("FRAUD DETECTED ON IMPORT OF: {}", fingerprint);
+        }
+        if key_import.status() == gpgme::ImportFlags::NEW {
+            should_check_sigs = true;
+        }
+    }
+    if !should_check_sigs {
+        return Some(imported_key);
+    }
 
     let mut good_signatures = Vec::new();
 
@@ -111,12 +128,22 @@ pub fn import_key(context: &mut Context, fingerprint: String) -> Option<Key> {
     }
 
     if good_signatures.is_empty() {
-        let prompt_str = format!("No recognized signatures found. Would you like to sign key for: {}?", imported_key.get_identity());
+        let prompt_str = format!(
+            "No recognized signatures found. Would you like to sign key for: {}?",
+            imported_key.get_identity()
+        );
         let choice = prompt::menu(&prompt_str, &["Yes", "No"], Some(1));
         println!("Choice is: {}", choice);
         if choice == 0 {
-            println!("Please verify the following signature: {}", imported_key.get_pretty_fingerprint());
-            let confirm = prompt::menu("Are you sure that you want to sign?", &["Yes", "No"], Some(1));
+            println!(
+                "Please verify the following signature: {}",
+                imported_key.get_pretty_fingerprint()
+            );
+            let confirm = prompt::menu(
+                "Are you sure that you want to sign?",
+                &["Yes", "No"],
+                Some(1),
+            );
             if confirm == 1 {
                 eprintln!("Key: {} not signed", fingerprint);
                 return None;
@@ -135,8 +162,11 @@ pub fn import_key(context: &mut Context, fingerprint: String) -> Option<Key> {
         }
     }
 
-    println!("The Key: <{}> is signed by the following verified signatures: ", imported_key.get_identity());
-    
+    println!(
+        "The Key: <{}> is signed by the following verified signatures: ",
+        imported_key.get_identity()
+    );
+
     for identity in good_signatures {
         println!("\t{}", identity);
     }
@@ -179,7 +209,10 @@ impl Key {
 
         let fingerprint = key.fingerprint();
         if fingerprint.is_err() {
-            return Err(format!("Unable to read key fingerpring for id: {}", identity));
+            return Err(format!(
+                "Unable to read key fingerpring for id: {}",
+                identity
+            ));
         }
         let fingerprint = fingerprint.unwrap().to_string();
 
@@ -187,7 +220,7 @@ impl Key {
         Ok(Key {
             identity,
             fingerprint,
-            has_secret_key
+            has_secret_key,
         })
     }
 
@@ -237,10 +270,17 @@ impl Key {
 
         let key_to_export = context.get_key(&self.fingerprint);
         if key_to_export.is_err() {
-            eprintln!("Unable to locate key for exporting for fingerprint: {}", self.fingerprint);
+            eprintln!(
+                "Unable to locate key for exporting for fingerprint: {}",
+                self.fingerprint
+            );
             std::process::exit(1);
         }
-        let export_res = context.export_keys(vec![&key_to_export.unwrap()], gpgme::ExportMode::empty(), &mut exported_bytes);
+        let export_res = context.export_keys(
+            vec![&key_to_export.unwrap()],
+            gpgme::ExportMode::empty(),
+            &mut exported_bytes,
+        );
         if export_res.is_err() {
             eprintln!("Unable to export key for fingerprint: {}", self.fingerprint);
             std::process::exit(1);
@@ -248,7 +288,10 @@ impl Key {
 
         let write_res = fs::write(&abs_path, exported_bytes);
         if write_res.is_err() {
-            eprintln!("Unable to write exported key for fingerprint: {}", self.fingerprint);
+            eprintln!(
+                "Unable to write exported key for fingerprint: {}",
+                self.fingerprint
+            );
             std::process::exit(1);
         }
     }

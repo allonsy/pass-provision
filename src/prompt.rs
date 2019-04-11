@@ -1,5 +1,5 @@
-use std::io::stdout;
 use std::io::stdin;
+use std::io::stdout;
 use std::io::Write;
 
 pub fn prompt(prompt: &str) -> String {
@@ -28,11 +28,7 @@ pub fn menu(prompt_str: &str, options: &[&str], default: Option<usize>) -> usize
                 &index == default.as_ref().unwrap()
             };
 
-            let default_str = if is_default {
-                "[default]"
-            } else {
-                ""
-            };
+            let default_str = if is_default { "[default]" } else { "" };
             println!("[ {} ]: {} {}", index + 1, options[index], default_str);
             index += 1;
         }
