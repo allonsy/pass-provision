@@ -3,25 +3,38 @@ mod key;
 mod prompt;
 mod config;
 
+use gpgme::Context;
 use std::collections::HashSet;
 
 fn main() {
-    let conf = init();
-    let keys_res = key::get_keys();
+    let (conf, mut context) = init();
+    let default_key = context.get_key(conf.get_default_key());
+    if default_key.is_err() {
+        eprintln!("Unable to locate default key: {} in keyring", conf.get_default_key());
+        std::process::exit(1);
+    }
+    let signer_res = context.add_signer(&default_key.unwrap());
+    if signer_res.is_err() {
+        eprintln!("Unable to add default key as a signer");
+        std::process::exit(1);
+    }
+
+    let keys_res = key::get_keys(&mut context);
     if keys_res.is_err() {
         eprintln!("Unable to read gpg keys!");
         std::process::exit(1);
     }
     let mut keys = keys_res.unwrap();
-    sync(&mut keys);
+    sync(&mut context, &mut keys);
 }
 
-fn sync(keys: &mut Vec<key::Key>) {
-    check_keys_to_import(keys);
-    write_missing_keys(keys);
+fn sync(context: &mut Context, keys: &mut Vec<key::Key>) {
+    check_keys_to_import(context, keys);
+    add_fresh_sigs(context);
+    write_missing_keys(context, keys);
 }
 
-fn check_keys_to_import(keys: &mut Vec<key::Key>) {
+fn check_keys_to_import(context: &mut Context, keys: &mut Vec<key::Key>) {
     let keys_in_folder = key::get_key_ids();
     for key in keys_in_folder {
         let mut found = false;
@@ -31,10 +44,10 @@ fn check_keys_to_import(keys: &mut Vec<key::Key>) {
             }
         }
         if !found {
-            let new_key = key::import_key(key);
+            let new_key = key::import_key(context, key);
             if new_key.is_some() {
                 let actual_new_key = new_key.unwrap();
-                actual_new_key.write_key();
+                actual_new_key.write_key(context);
                 keys.push(actual_new_key);
                 println!("Imported key");
             }
@@ -42,7 +55,21 @@ fn check_keys_to_import(keys: &mut Vec<key::Key>) {
     }
 }
 
-fn write_missing_keys(keys: &Vec<key::Key>) {
+fn add_fresh_sigs(context: &mut Context) {
+    let keys_in_folder = key::get_key_ids();
+
+    for fpr in keys_in_folder {
+        let key = key::get_key(context, &fpr);
+        if key.is_none() {
+            eprintln!("Unable to find key: {} in keyring", fpr);
+            continue;
+        }
+        let key = key.unwrap();
+        key.write_key(context);
+    }
+}
+
+fn write_missing_keys(context: &mut Context, keys: &Vec<key::Key>) {
     let gpgs = key::gpg_id::get_all_gpgs();
 
     let written_keys = key::get_key_ids();
@@ -58,24 +85,34 @@ fn write_missing_keys(keys: &Vec<key::Key>) {
                 }
                 if !found {
                     println!("Writing key for identity: {}", key.get_identity());
-                    key.write_key();
+                    key.write_key(context);
                 }
             }
         }
     }
 }
 
-fn init() -> config::Config {
+fn init() -> (config::Config, Context) {
+    let context = Context::from_protocol(gpgme::Protocol::OpenPgp);
+    if context.is_err() {
+        eprintln!("Unable to get gpg context. Do you have gpgme installed?");
+        std::process::exit(1);
+    }
+    let mut context = context.unwrap();
+    context.set_armor(true);
+    context.clear_signers();
+
+
     let config_path = config::get_config_file_location();
     if config_path.exists() {
         let conf = config::Config::parse_config();
         if conf.is_some() {
-            return conf.unwrap();
+            return (conf.unwrap(), context);
         }
     }
 
     let mut key_options = Vec::new();
-    let keys = key::get_keys();
+    let keys = key::get_secret_keys(&mut context);
     if keys.is_err() {
         eprintln!("Unable to read keys from GPG");
         std::process::exit(1);
@@ -104,7 +141,7 @@ fn init() -> config::Config {
                 continue;
             }
 
-            let new_keys = key::get_keys();
+            let new_keys = key::get_keys(&mut context);
             if new_keys.is_err() {
                 eprintln!("Unable to read keys from GPG");
                 std::process::exit(1);
@@ -115,7 +152,7 @@ fn init() -> config::Config {
                     if !seen_before.contains(new_key.get_fingerprint()) {
                         let conf = config::Config::new(new_key.get_fingerprint().to_string());
                         conf.write_config();
-                        return conf;
+                        return (conf, context);
                     }
                 }
             }
@@ -124,7 +161,7 @@ fn init() -> config::Config {
         } else {
             let conf = config::Config::new(key_index[choice].to_string());
             conf.write_config();
-            return conf;
+            return (conf, context);
         }
     }
 }

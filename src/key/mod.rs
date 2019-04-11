@@ -1,148 +1,112 @@
 mod folder;
 pub mod gpg_id;
-mod parser;
-use super::command;
 use super::prompt;
 pub use folder::get_key_ids;
+use gpgme::Context;
+use std::fs;
 
-pub fn get_keys() -> Result<Vec<Key>, String> {
-    let parser = parser::get_parser();
-    let list_key_output = command::get_command_output("gpg", &["--list-keys"]);
-    if list_key_output.is_err() {
-        return Err("unable to get list key output".to_string());
-    }
-    let list_key_str = list_key_output.unwrap();
-    let mut lines = list_key_str.lines();
-    lines.next();
-    lines.next();
-    let pub_keys_res = parser::parse_keys(parser.as_ref(), lines);
-    if pub_keys_res.is_err() {
-        return Err(pub_keys_res.err().unwrap());
-    }
-    let mut pub_keys = pub_keys_res.unwrap();
-
-    let secret_key_output = command::get_command_output("gpg", &["--list-secret-keys"]);
-    if secret_key_output.is_err() {
-        return Err("Unable to retrieve secret key listings".to_string());
-    }
-    let secret_key_str = secret_key_output.unwrap();
-    let mut sec_lines = secret_key_str.lines();
-    sec_lines.next();
-    sec_lines.next();
-
-    let sec_keys_res = parser::parse_keys(parser.as_ref(), sec_lines);
-    if sec_keys_res.is_err() {
-        return Err(sec_keys_res.err().unwrap());
+pub fn get_keys(context: &mut Context) -> Result<Vec<Key>, String> {
+    let mut pub_keys = Vec::new();
+    let key_iterator = context.keys();
+    if key_iterator.is_err() {
+        return Err(key_iterator.err().unwrap().description().to_string());
     }
 
-    let sec_keys = sec_keys_res.unwrap();
-
-    for key in &mut pub_keys {
-        for sec_key in &sec_keys {
-            if key.get_fingerprint() == sec_key.get_fingerprint() {
-                key.set_has_secret_key(true);
-            }
+    for key in key_iterator.unwrap() {
+        if key.is_err() {
+            eprintln!("Unable to read key");
+            continue;
         }
+        let key = key.unwrap();
+        
+        let parsed_key = Key::parse_key(&key)?;
+        pub_keys.push(parsed_key);
     }
 
     Ok(pub_keys)
 }
 
-pub fn get_key(fingerprint: &str) -> Option<Key> {
-    let parser = parser::get_parser();
-    let list_key_output = command::get_command_output("gpg", &["--list-key", &fingerprint]);
-    if list_key_output.is_err() {
-        return None;
+pub fn get_secret_keys(context:&mut Context) -> Result<Vec<Key>, String> {
+    let mut priv_keys = Vec::new();
+    let key_iterator = context.secret_keys();
+    if key_iterator.is_err() {
+        return Err(key_iterator.err().unwrap().description().to_string());
     }
 
-    let unwrapped_output = list_key_output.unwrap();
-    let lines = unwrapped_output.lines();
-    let key_res = parser.parse_key(lines);
-    if key_res.is_err() {
-        return None;
-    }
-    let key_opt = key_res.unwrap();
-    if key_opt.is_none() {
-        return None;
+    for key in key_iterator.unwrap() {
+        if key.is_err() {
+            eprintln!("Unable to read secret key");
+            continue;
+        }
+        let key = key.unwrap();
+        
+        let parsed_key = Key::parse_key(&key)?;
+        priv_keys.push(parsed_key);
     }
 
-    let (key, _) = key_opt.unwrap();
-    if !key.is_trusted() {
-        return None;
-    }
-    
-    Some(key)
+    Ok(priv_keys)
 }
 
-pub fn get_default_key() -> Key {
-    let keys = get_keys();
-    if keys.is_err() {
-        eprintln!("No default key available, please run init first");
-        std::process::exit(1);
-    }
-    let actual_keys = keys.unwrap();
-    if actual_keys.is_empty() {
-        eprintln!("No default key available, please run init first");
-        std::process::exit(1);
-    }
-
-    for key in actual_keys {
-        return key;
-    }
-
-    panic!("No default key found");
-}
-
-pub fn import_key(fingerprint: String) -> Option<Key> {
-    let keys_res = get_keys();
-    if keys_res.is_err() {
-        eprintln!("Unable to retrieve list of keys");
+pub fn get_key(context: &mut Context, fingerprint: &str) -> Option<Key> {
+    let gpg_key = context.get_key(fingerprint);
+    if gpg_key.is_err() {
         return None;
     }
-    let key_list = keys_res.unwrap();
 
+    let key = Key::parse_key(&gpg_key.unwrap());
+    if key.is_err() {
+        return None;
+    }
+
+    Some(key.unwrap())
+}
+
+pub fn import_key(context: &mut Context, fingerprint: String) -> Option<Key> {
     let keys_dir = folder::get_keys_dir();
     let key_path = keys_dir.join(fingerprint.clone() + ".asc");
     if !key_path.exists() {
         eprintln!("Unable to find pubkey file for key: {}", fingerprint);
         return None;
     }
-    let key_path_str = format!("{}", key_path.display());
-    let res = command::oneshot_command("gpg", &["--import", &key_path_str]);
-    if res.is_err() {
-        eprintln!("Importing key failed");
+    let key_contents = fs::read_to_string(&key_path);
+    if key_contents.is_err() {
+        eprintln!("Unable to read key: {}", fingerprint);
         return None;
     }
 
-    let imported_key_opt = get_key(&fingerprint);
-    if imported_key_opt.is_none() {
-        eprintln!("Import key failure or fraud detected");
-        return None;
-    }
-    let imported_key = imported_key_opt.unwrap();
-
-    let sig_output = command::get_command_output("gpg", &["--check-signatures", &fingerprint]);
-    if sig_output.is_err() {
-        eprintln!("Unable to check signatures for key: {}", fingerprint);
+    let import_result = context.import(key_contents.unwrap());
+    if import_result.is_err() {
+        eprintln!("Unable to import key for fingerprint: {}", fingerprint);
         return None;
     }
 
-    let parser = parser::get_parser();
-    let sigs = parser.parse_sigs(sig_output.unwrap());
+    let imported_gpg_key = context.get_key(&fingerprint);
+
+    if imported_gpg_key.is_err() {
+        eprintln!("FRAUD DETECTED ON IMPORT, PLEASE DOUBLE CHECK KEY AT: {}", fingerprint);
+        return None;
+    }
+    let imported_gpg_key = imported_gpg_key.unwrap();
+    let imported_key = Key::parse_key(&imported_gpg_key);
+    if imported_key.is_err() {
+        return None;
+    }
+    let imported_key = imported_key.unwrap();
+    
 
     let mut good_signatures = Vec::new();
-    for sig in sigs.iter() {
-        let (short_fingerprint, uid) = sig;
-        let mut good = false;
-        if short_fingerprint != imported_key.get_short_fingerprint() || uid == imported_key.get_identity() {
-            for key in key_list.iter() {
-                if short_fingerprint == key.get_short_fingerprint() && uid == key.get_identity() {
-                    good = true;
+
+    for user_id in imported_gpg_key.user_ids() {
+        for sig in user_id.signatures() {
+            if sig.is_invalid() || sig.is_expired() || sig.is_revocation() {
+                continue;
+            }
+            if sig.status() == gpgme::Error::NO_ERROR {
+                let good_uid = sig.signer_user_id();
+                if good_uid.is_ok() {
+                    good_signatures.push(good_uid.unwrap().to_string());
                 }
             }
-        }
-        if good {
-            good_signatures.push(sig);
         }
     }
 
@@ -157,8 +121,7 @@ pub fn import_key(fingerprint: String) -> Option<Key> {
                 eprintln!("Key: {} not signed", fingerprint);
                 return None;
             } else {
-                let default_key = get_default_key();
-                let res = command::oneshot_command("gpg", &["-u", &default_key.get_fingerprint(), "--sign-key", &imported_key.get_fingerprint()]);
+                let res = context.sign_key(&imported_gpg_key, vec![&imported_key.identity], None);
                 if res.is_err() {
                     eprintln!("Unable to sign key: {}", fingerprint);
                     return None;
@@ -174,14 +137,13 @@ pub fn import_key(fingerprint: String) -> Option<Key> {
 
     println!("The Key: <{}> is signed by the following verified signatures: ", imported_key.get_identity());
     
-    for (_, identity) in good_signatures {
+    for identity in good_signatures {
         println!("\t{}", identity);
     }
     let choice = prompt::menu("Would you like to sign the key?", &["Yes", "No"], Some(0));
 
     if choice == 0 {
-        let default_key = get_default_key();
-        let res = command::oneshot_command("gpg", &["-u", &default_key.get_fingerprint(), "--sign-key", &imported_key.get_fingerprint()]);
+        let res = context.sign_key(&imported_gpg_key, vec![&imported_key.identity], None);
         if res.is_err() {
             eprintln!("Unable to sign key");
             return None;
@@ -192,26 +154,41 @@ pub fn import_key(fingerprint: String) -> Option<Key> {
         eprintln!("Didn't sign key");
         return None;
     }
-
-
-
 }
 
 pub struct Key {
     identity: String,
     fingerprint: String,
     has_secret_key: bool,
-    is_trusted: bool,
 }
 
 impl Key {
-    pub fn new(identity: String, fingerprint: String, has_secret_key: bool, is_trusted: bool) -> Key {
-        Key {
+    pub fn parse_key(key: &gpgme::Key) -> Result<Key, String> {
+        let mut identity = String::new();
+        for user_id in key.user_ids() {
+            let identity_result = user_id.email();
+            if identity_result.is_err() {
+                eprintln!("Unable to read userid identity");
+                continue;
+            }
+            identity = identity_result.unwrap().to_string();
+        }
+        if identity.is_empty() {
+            return Err("No userids found for key".to_string());
+        }
+
+        let fingerprint = key.fingerprint();
+        if fingerprint.is_err() {
+            return Err(format!("Unable to read key fingerpring for id: {}", identity));
+        }
+        let fingerprint = fingerprint.unwrap().to_string();
+
+        let has_secret_key = key.has_secret();
+        Ok(Key {
             identity,
             fingerprint,
-            has_secret_key,
-            is_trusted,
-        }
+            has_secret_key
+        })
     }
 
     pub fn get_fingerprint(&self) -> &str {
@@ -252,40 +229,27 @@ impl Key {
         &self.fingerprint[start_index..fingerprint_len]
     }
 
-    pub fn set_has_secret_key(&mut self, has_secret_key: bool) {
-        self.has_secret_key = has_secret_key;
-    }
-
-    pub fn is_trusted(&self) -> bool {
-        self.is_trusted
-    }
-
-    pub fn write_key(&self) {
+    pub fn write_key(&self, context: &mut Context) {
         let keys_dir = folder::get_keys_dir();
         let fname = format!("{}.asc", self.fingerprint);
         let abs_path = keys_dir.join(fname);
-        let full_output_path = format!("{}", abs_path.display());
-        let success = command::oneshot_command(
-            "gpg",
-            &[
-                "--armor",
-                "--output",
-                &full_output_path,
-                "--export",
-                &self.fingerprint,
-            ],
-        );
-        if success.is_err() {
-            eprintln!("Error writing key file for key: {}", self.identity);
-        }
-    }
+        let mut exported_bytes = Vec::new();
 
-    pub fn print_key(&self) {
-        println!(
-            "Key ident: {}, fpr: {}, secret key: {}",
-            self.identity,
-            self.fingerprint,
-            self.has_secret_key()
-        );
+        let key_to_export = context.get_key(&self.fingerprint);
+        if key_to_export.is_err() {
+            eprintln!("Unable to locate key for exporting for fingerprint: {}", self.fingerprint);
+            std::process::exit(1);
+        }
+        let export_res = context.export_keys(vec![&key_to_export.unwrap()], gpgme::ExportMode::empty(), &mut exported_bytes);
+        if export_res.is_err() {
+            eprintln!("Unable to export key for fingerprint: {}", self.fingerprint);
+            std::process::exit(1);
+        }
+
+        let write_res = fs::write(&abs_path, exported_bytes);
+        if write_res.is_err() {
+            eprintln!("Unable to write exported key for fingerprint: {}", self.fingerprint);
+            std::process::exit(1);
+        }
     }
 }

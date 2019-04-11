@@ -57,6 +57,10 @@ impl Config {
         None
     }
 
+    pub fn get_default_key(&self) -> &str {
+        &self.default_key
+    }
+
     pub fn write_config(&self) {
         let config_file = get_config_file_location();
         let mut table = Map::new();
