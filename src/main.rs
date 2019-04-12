@@ -5,6 +5,7 @@ mod prompt;
 
 use gpgme::Context;
 use std::collections::HashSet;
+use std::env;
 
 fn main() {
     let (conf, mut context) = init();
@@ -28,7 +29,28 @@ fn main() {
         std::process::exit(1);
     }
     let mut keys = keys_res.unwrap();
-    sync(&mut context, &mut keys);
+
+    let args: Vec<String> = env::args().collect();
+    if args.len() == 1 {
+        sync(&mut context, &mut keys);
+        return;
+    }
+
+    match args[1].as_str() {
+        "sync" => {
+            sync(&mut context, &mut keys);
+        }
+        "gpg-add" => {
+            add_gpgs(&args[2..], &mut context, &conf);
+        }
+        "reencrypt" => {
+            reencrypt_cmd(&args[2..]);
+        }
+        _ => {
+            eprintln!("Unknown command: {}", args[1]);
+            std::process::exit(1);
+        }
+    }
 }
 
 fn sync(context: &mut Context, keys: &mut Vec<key::Key>) {
@@ -78,6 +100,94 @@ fn write_missing_keys(context: &mut Context, keys: &[key::Key]) {
                 }
             }
         }
+    }
+}
+
+fn add_gpgs(gpgs: &[String], context: &mut Context, config: &config::Config) {
+    let mut new_gpgs = Vec::new();
+    let mut path = key::get_pass_dir();
+    let mut sub_path = None;
+    if gpgs.is_empty() {
+        let default_key = key::get_key(context, config.get_default_key());
+        if default_key.is_none() {
+            eprintln!("No GPG ids provided and unable to find default key");
+            std::process::exit(1);
+        }
+        let default_key = default_key.unwrap();
+        new_gpgs.push(default_key.get_identity().to_string());
+    } else if gpgs[0] == "-p" {
+        if gpgs.len() == 1 {
+            eprintln!("No path provided to -p argument");
+            std::process::exit(1);
+        }
+        path = path.join(&gpgs[1]);
+        sub_path = Some(gpgs[1].to_string());
+        for gpg in &gpgs[2..] {
+            new_gpgs.push(gpg.to_string());
+        }
+    } else {
+        for gpg in gpgs {
+            new_gpgs.push(gpg.to_string());
+        }
+    }
+
+    let mut old_gpgs = key::gpg_id::get_base_gpgs_for_dir(&path);
+
+    let mut changed = false;
+    for new_gpg in new_gpgs {
+        if !old_gpgs.contains(&new_gpg) {
+            changed = true;
+            old_gpgs.insert(new_gpg);
+        }
+    }
+
+    if changed {
+        key::gpg_id::write_gpg_ids(&path, &old_gpgs);
+        reencrypt(sub_path);
+    }
+}
+
+fn reencrypt_cmd(args: &[String]) {
+    if args.is_empty() {
+        reencrypt(None);
+        return;
+    }
+    reencrypt(Some(args[0].clone()));
+}
+
+fn reencrypt(path: Option<String>) {
+    let mut args = Vec::new();
+    args.push("init");
+    let path_str = if path.is_some() {
+        path.as_ref().unwrap().clone()
+    } else {
+        String::new()
+    };
+
+    let base_path = key::get_pass_dir();
+    let mut gpgs: Vec<String> = if path.is_some() {
+        let joined_path = base_path.join(path.as_ref().unwrap());
+        key::gpg_id::get_base_gpgs_for_dir(&joined_path)
+            .into_iter()
+            .collect()
+    } else {
+        key::gpg_id::get_base_gpgs_for_dir(&base_path)
+            .into_iter()
+            .collect()
+    };
+    gpgs.sort();
+
+    if path.is_some() {
+        args.push("-p");
+        args.push(&path_str);
+    }
+    for gpg in &gpgs {
+        args.push(gpg);
+    }
+    let res = command::oneshot_command("pass", &args);
+    if res.is_err() {
+        println!("Reencrypt failed");
+        std::process::exit(1);
     }
 }
 

@@ -17,12 +17,7 @@ pub fn get_base_gpgs_for_dir(path: &Path) -> HashSet<String> {
     parse_gpg_id_file(&path.join(GPG_ID_FILE_NAME))
 }
 
-pub fn get_base_gpgs() -> HashSet<String> {
-    let pass_dir = folder::get_pass_dir();
-    get_base_gpgs_for_dir(&pass_dir)
-}
-
-pub fn write_gpg_ids(path: &Path, gpg_ids: HashSet<String>) {
+pub fn write_gpg_ids(path: &Path, gpg_ids: &HashSet<String>) {
     if !path.exists() {
         eprintln!(
             "Unable to write gpg_id file! path: {} doesn't exist",

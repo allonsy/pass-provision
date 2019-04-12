@@ -2,6 +2,7 @@ mod folder;
 pub mod gpg_id;
 use super::prompt;
 pub use folder::get_key_ids;
+pub use folder::get_pass_dir;
 use gpgme::Context;
 use std::fs;
 
