@@ -149,7 +149,8 @@ pub fn import_key(context: &mut Context, fingerprint: String) -> Option<Key> {
                 eprintln!("Key: {} not signed", fingerprint);
                 return None;
             } else {
-                let res = context.sign_key(&imported_gpg_key, vec![&imported_key.identity], None);
+                let all_uids: Vec<&str> = Vec::new();
+                let res = context.sign_key(&imported_gpg_key, all_uids, None);
                 if res.is_err() {
                     eprintln!("Unable to sign key: {}", fingerprint);
                     return None;
