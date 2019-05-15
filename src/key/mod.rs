@@ -122,7 +122,11 @@ pub fn import_key(context: &mut Context, fingerprint: String) -> Option<Key> {
             if sig.status() == gpgme::Error::NO_ERROR {
                 let good_uid = sig.signer_user_id();
                 if good_uid.is_ok() {
-                    good_signatures.push(good_uid.unwrap().to_string());
+                    let good_uid = good_uid.unwrap();
+                    let user_id_id = user_id.id();
+                    if user_id_id.is_ok() && good_uid != user_id_id.unwrap() {
+                        good_signatures.push(good_uid.to_string());
+                    }
                 }
             }
         }
@@ -134,7 +138,7 @@ pub fn import_key(context: &mut Context, fingerprint: String) -> Option<Key> {
             imported_key.get_identity()
         );
         let choice = prompt::menu(&prompt_str, &["Yes", "No"], Some(1));
-        println!("Choice is: {}", choice);
+        println!("Choice is: {}", choice + 1);
         if choice == 0 {
             println!(
                 "Please verify the following signature: {}",
@@ -175,7 +179,8 @@ pub fn import_key(context: &mut Context, fingerprint: String) -> Option<Key> {
     let choice = prompt::menu("Would you like to sign the key?", &["Yes", "No"], Some(0));
 
     if choice == 0 {
-        let res = context.sign_key(&imported_gpg_key, vec![&imported_key.identity], None);
+        let empty_uids: Vec<&[u8]> = Vec::new();
+        let res = context.sign_key(&imported_gpg_key, empty_uids, None);
         if res.is_err() {
             eprintln!("Unable to sign key");
             None

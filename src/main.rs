@@ -6,6 +6,7 @@ mod prompt;
 use gpgme::Context;
 use std::collections::HashSet;
 use std::env;
+use gpgme::KeyListMode;
 
 fn main() {
     let (conf, mut context) = init();
@@ -200,6 +201,10 @@ fn init() -> (config::Config, Context) {
     let mut context = context.unwrap();
     context.set_armor(true);
     context.clear_signers();
+    let mut key_list_mode = KeyListMode::empty();
+    key_list_mode.insert(KeyListMode::LOCAL);
+    key_list_mode.insert(KeyListMode::SIGS);
+    context.set_key_list_mode(key_list_mode);
 
     let config_path = config::get_config_file_location();
     if config_path.exists() {
@@ -272,3 +277,6 @@ fn init() -> (config::Config, Context) {
         }
     }
 }
+
+#[cfg(test)]
+mod test;
