@@ -1,3 +1,4 @@
+mod gpgid;
 mod sync;
 
 use gpgme::Context;
