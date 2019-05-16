@@ -1,24 +1,20 @@
 use std::io::stdout;
 use std::io::Write;
-use std::io::BufRead;
 
 #[cfg(test)]
-fn get_stdin() -> &'static [u8] {
-    unsafe { super::test::TEST_STDIN }
-}
-
-#[cfg(not(test))]
-fn get_stdin() -> Stdin {
-    std::io::stdin()
-}
+use std::io::BufRead;
 
 pub fn prompt(prompt: &str) -> String {
     print!("{} ", prompt);
     stdout().flush().unwrap();
     let mut input = String::new();
-    
-    let mut stdin_source = get_stdin();
-    
+
+    #[cfg(not(test))]
+    let stdin_source = std::io::stdin();
+
+    #[cfg(test)]
+    let mut stdin_source = unsafe { super::test::TEST_STDIN };
+
     let res = stdin_source.read_line(&mut input);
     if res.is_err() {
         eprintln!("No input received");

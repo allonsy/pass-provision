@@ -1,16 +1,10 @@
 use gpgme::Context;
-use gpgme::Protocol;
 use gpgme::KeyListMode;
-use gpgme::Validity;
-use std::process::Command;
+use gpgme::Protocol;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use std::os::unix::io::AsRawFd;
-use std::os::unix::io::FromRawFd;
-use std::os::unix::io::IntoRawFd;
-use std::io::Write;
-use std::os::raw::c_int;
+use std::process::Command;
 
 pub static mut TEST_STDIN: &[u8] = b"";
 
@@ -47,7 +41,7 @@ fn is_signed_by(context: &mut Context, key_id: &str, signer_identity: &str) -> b
             }
         }
     }
-    return false;
+    false
 }
 
 fn set_up(scenario_name: &str) -> Context {
@@ -63,7 +57,7 @@ fn set_up(scenario_name: &str) -> Context {
     if !copy_status.success() {
         panic!("Unable to copy for runtime testing environment");
     }
-    
+
     std::env::set_var("GNUPGHOME", to_path.join("gnupg"));
     std::env::set_var("PASSWORD_STORE_DIR", to_path.join("pass"));
     let mut context = Context::from_protocol(Protocol::OpenPgp).unwrap();
@@ -71,7 +65,7 @@ fn set_up(scenario_name: &str) -> Context {
     let mut key_list_mode = KeyListMode::empty();
     key_list_mode.insert(KeyListMode::LOCAL);
     key_list_mode.insert(KeyListMode::SIGS);
-    context.set_key_list_mode(key_list_mode);
+    context.set_key_list_mode(key_list_mode).unwrap();
     context
 }
 
@@ -95,18 +89,17 @@ fn test_key_import() {
     let new_key1 = context.get_key(newkey1_id);
     let new_key2 = context.get_key(newkey2_id);
 
-    
     if new_key1.is_err() {
         panic!("Newkey1 not imported");
     }
     if !is_signed_by(&mut context, newkey1_id, testing_key_id) {
         panic!("Newkey1 imported but it isn't trusted");
     }
-    
+
     if new_key2.is_err() {
         panic!("Newkey2 not imported");
     }
-    
+
     if !is_signed_by(&mut context, newkey2_id, testing_key_id) {
         panic!("Newkey2 imported but it isn't trusted");
     }
@@ -127,11 +120,9 @@ fn test_key_import_no_sigs() {
     write_to_stdin("\n");
     super::check_keys_to_import(&mut context);
     let new_key1 = context.get_key(newkey1_id);
-    
-    if new_key1.is_ok() {
-        if is_signed_by(&mut context, newkey1_id, testing_key_id) {
-            panic!("Newkey1 imported but it is trusted");
-        }
+
+    if new_key1.is_ok() && is_signed_by(&mut context, newkey1_id, testing_key_id) {
+        panic!("Newkey1 imported but it is trusted");
     }
     clean_up_scenario("import_keys_no_sigs");
 }
@@ -149,11 +140,9 @@ fn test_key_import_new_key() {
     write_to_stdin("1\n");
     super::check_keys_to_import(&mut context);
     let new_key1 = context.get_key(newkey1_id);
-    
-    if new_key1.is_ok() {
-        if !is_signed_by(&mut context, newkey1_id, testing_key_id) {
-            panic!("Newkey1 imported but it is trusted");
-        }
+
+    if new_key1.is_ok() && !is_signed_by(&mut context, newkey1_id, testing_key_id) {
+        panic!("Newkey1 imported but it is trusted");
     }
     clean_up_scenario("import_keys_new_key");
 }
@@ -171,11 +160,9 @@ fn test_key_import_fraud_id() {
     write_to_stdin("\n");
     super::check_keys_to_import(&mut context);
     let new_key1 = context.get_key(newkey1_id);
-    
-    if new_key1.is_ok() {
-        if is_signed_by(&mut context, newkey1_id, testing_key_id) {
-            panic!("Newkey1 imported but it is trusted");
-        }
+
+    if new_key1.is_ok() && is_signed_by(&mut context, newkey1_id, testing_key_id) {
+        panic!("Newkey1 imported but it is trusted");
     }
     clean_up_scenario("import_keys_fraud_id");
 }

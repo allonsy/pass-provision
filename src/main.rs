@@ -4,9 +4,9 @@ mod key;
 mod prompt;
 
 use gpgme::Context;
+use gpgme::KeyListMode;
 use std::collections::HashSet;
 use std::env;
-use gpgme::KeyListMode;
 
 fn main() {
     let (conf, mut context) = init();
@@ -204,7 +204,11 @@ fn init() -> (config::Config, Context) {
     let mut key_list_mode = KeyListMode::empty();
     key_list_mode.insert(KeyListMode::LOCAL);
     key_list_mode.insert(KeyListMode::SIGS);
-    context.set_key_list_mode(key_list_mode);
+    let list_mode_set_result = context.set_key_list_mode(key_list_mode);
+    if list_mode_set_result.is_err() {
+        eprintln!("Unable to read signatures from gpg context");
+        std::process::exit(1);
+    }
 
     let config_path = config::get_config_file_location();
     if config_path.exists() {
