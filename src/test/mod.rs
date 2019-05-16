@@ -166,3 +166,32 @@ fn test_key_import_fraud_id() {
     }
     clean_up_scenario("import_keys_fraud_id");
 }
+
+#[test]
+fn test_fresh_sigs() {
+    let mut context = set_up("fresh_sigs");
+    super::add_fresh_sigs(&mut context);
+
+    for (expected_name, actual_name) in &[
+        (
+            "newkey1.expected",
+            "A849644DA452281D2EB637EA9FEBCD1F791BC6B9.asc",
+        ),
+        (
+            "newkey2.expected",
+            "D54BA99B7CD92448901306F46AD31A01C5E25FA2.asc",
+        ),
+    ] {
+        let actual_path = PathBuf::from("testing/fresh_sigs_run/pass/.keys").join(actual_name);
+        let expected_path = PathBuf::from("testing/fresh_sigs_run").join(expected_name);
+        let diff_command = Command::new("diff")
+            .arg(actual_path.to_str().unwrap())
+            .arg(expected_path.to_str().unwrap())
+            .status()
+            .expect("Expected diff command to succeed");
+        if !diff_command.success() {
+            panic!("Key '{}' not updated", actual_name);
+        }
+    }
+    clean_up_scenario("fresh_sigs");
+}
