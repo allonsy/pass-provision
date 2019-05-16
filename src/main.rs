@@ -2,8 +2,10 @@ mod command;
 mod config;
 mod key;
 mod prompt;
-
+#[cfg(test)]
+mod test;
 use gpgme::Context;
+
 use gpgme::KeyListMode;
 use std::collections::HashSet;
 use std::env;
@@ -87,6 +89,7 @@ fn write_missing_keys(context: &mut Context, keys: &[key::Key]) {
     let written_keys = key::get_key_ids();
 
     for gpg in gpgs {
+        println!("found gpg: {}", gpg);
         for key in keys {
             if key.get_identity() == gpg {
                 let mut found = false;
@@ -281,6 +284,3 @@ fn init() -> (config::Config, Context) {
         }
     }
 }
-
-#[cfg(test)]
-mod test;
