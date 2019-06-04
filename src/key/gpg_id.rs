@@ -10,7 +10,7 @@ const GPG_ID_FILE_NAME: &str = ".gpg-id";
 pub fn get_all_gpgs() -> HashSet<String> {
     let pass_dir = folder::get_pass_dir();
 
-    get_gpgs_for_dir(&pass_dir)
+    get_all_gpgs_for_dir(&pass_dir)
 }
 
 pub fn get_base_gpgs_for_dir(path: &Path) -> HashSet<String> {
@@ -42,7 +42,19 @@ pub fn write_gpg_ids(path: &Path, gpg_ids: &HashSet<String>) {
     }
 }
 
-fn get_gpgs_for_dir(path: &Path) -> HashSet<String> {
+pub fn get_gpgs_for_dir(path: &Path) -> HashSet<String> {
+    let pass_path = folder::get_pass_dir();
+    for parent_path in path.ancestors() {
+        let gpg_path = pass_path.join(parent_path).join(GPG_ID_FILE_NAME);
+        let gpgs = parse_gpg_id_file(&gpg_path);
+        if !gpgs.is_empty() {
+            return gpgs;
+        }
+    }
+    HashSet::new()
+}
+
+fn get_all_gpgs_for_dir(path: &Path) -> HashSet<String> {
     let mut gpgs = HashSet::new();
     let gpg_file = path.join(GPG_ID_FILE_NAME);
     if gpg_file.exists() {
@@ -60,7 +72,7 @@ fn get_gpgs_for_dir(path: &Path) -> HashSet<String> {
             let entry = file.unwrap();
             let entry_path = entry.path();
             if entry_path.is_dir() {
-                let dir_gpgs = get_gpgs_for_dir(&entry_path);
+                let dir_gpgs = get_all_gpgs_for_dir(&entry_path);
                 union_hash_set(&mut gpgs, dir_gpgs);
             }
         }

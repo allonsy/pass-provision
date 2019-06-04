@@ -135,7 +135,7 @@ fn add_gpgs(gpgs: &[String], context: &mut Context, config: &config::Config) {
         }
     }
 
-    let mut old_gpgs = key::gpg_id::get_base_gpgs_for_dir(&path);
+    let mut old_gpgs = key::gpg_id::get_gpgs_for_dir(&path);
 
     let mut changed = false;
     for new_gpg in new_gpgs {

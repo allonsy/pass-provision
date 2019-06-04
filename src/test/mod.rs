@@ -1,10 +1,13 @@
+mod add_gpg;
 mod gpgid;
 mod sync;
 
 use gpgme::Context;
 use gpgme::KeyListMode;
 use gpgme::Protocol;
+use std::collections::HashSet;
 use std::fs;
+use std::iter::FromIterator;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
@@ -24,6 +27,37 @@ fn write_to_stdin(input: &'static str) {
     unsafe {
         TEST_STDIN = input.as_bytes();
     }
+}
+
+fn get_recipients(
+    context: &mut Context,
+    scenario_name: &str,
+    pass_path: &str,
+) -> Option<HashSet<String>> {
+    let file_path = get_scenario_runtime_path(scenario_name)
+        .join("pass")
+        .join(pass_path);
+    let ciphertext = gpgme::Data::load(file_path.to_str().unwrap());
+    if ciphertext.is_err() {
+        return None;
+    }
+    let mut ciphertext = ciphertext.unwrap();
+
+    let mut plaintext = Vec::new();
+    let decrypt_result = context.decrypt(&mut ciphertext, &mut plaintext);
+    if decrypt_result.is_err() {
+        return None;
+    }
+    let decrypt_result = decrypt_result.unwrap();
+    let recipients = decrypt_result.recipients();
+    let mut receivers = Vec::new();
+    for receiver in recipients {
+        let key_id = receiver.key_id();
+        if key_id.is_ok() {
+            receivers.push(key_id.unwrap().to_string());
+        }
+    }
+    Some(HashSet::from_iter(receivers))
 }
 
 fn set_up(scenario_name: &str) -> Context {

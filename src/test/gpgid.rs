@@ -32,6 +32,28 @@ fn test_subdir_gpgs() {
 }
 
 #[test]
+fn test_get_dir_gpgs_with_file() {
+    let _ = set_up("all_gpgs");
+    let sub_gpgs = crate::key::gpg_id::get_gpgs_for_dir(&Path::new("subdir"));
+    let expected_hash_set = HashSet::from_iter(vec!["user4".to_string(), "user5".to_string()]);
+    assert_eq!(expected_hash_set, sub_gpgs);
+    clean_up_scenario("all_gpgs")
+}
+
+#[test]
+fn test_get_dir_gpgs_inherit() {
+    let _ = set_up("all_gpgs_inherit");
+    let sub_gpgs = crate::key::gpg_id::get_gpgs_for_dir(&Path::new("subdir"));
+    let expected_hash_set = HashSet::from_iter(vec![
+        "user1".to_string(),
+        "user2".to_string(),
+        "user3".to_string(),
+    ]);
+    assert_eq!(expected_hash_set, sub_gpgs);
+    clean_up_scenario("all_gpgs_inherit")
+}
+
+#[test]
 fn test_write_gpgs() {
     let _ = set_up("all_gpgs");
     let new_hash = HashSet::from_iter(vec![
