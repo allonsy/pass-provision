@@ -6,6 +6,7 @@ rust:
   - stable
 before_script:
   - sudo apt-get install pass
+  - sudo apt-get install libgpgme
   - rustup component add clippy
 script:
   - cargo clippy --all-targets --all-features -- -D warnings
