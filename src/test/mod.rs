@@ -1,5 +1,6 @@
 mod add_gpg;
 mod gpgid;
+mod reencrypt;
 mod sync;
 
 use gpgme::Context;
