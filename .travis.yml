@@ -1,0 +1,24 @@
+os:
+  - linux
+language: rust
+cache: cargo
+rust:
+  - stable
+before_script:
+  - sudo apt-get install pass
+  - rustup component add clippy
+script:
+  - cargo clippy --all-targets --all-features -- -D warnings
+  - cargo test --verbose
+before_deploy:
+  - cargo build --release
+  - mkdir dist
+  - cp target/release/gclone-bin dist/gclone-bin-$TRAVIS_OS_NAME-$TRAVIS_TAG
+deploy:
+  provider: releases
+  api_key: $GITHUB_API_KEY
+  file_glob: true
+  file: dist/*
+  skip_cleanup: true
+  on:
+    tags: true
